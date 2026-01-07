@@ -267,33 +267,34 @@ class Game:
     
     def update_bullets(self):
         bullets_to_remove = []
-        
+
         for bullet in self.bullets:
             bullet.update()
-            
+
             # Удаление пуль за границами
             if bullet.x < 0 or bullet.x > SCREEN_WIDTH or bullet.y < 0 or bullet.y > SCREEN_HEIGHT:
                 bullets_to_remove.append(bullet)
                 continue
-            
+
             # Проверка столкновения со стенами
             for wall in self.walls:
                 if bullet.rect.colliderect(wall.rect):
                     bullets_to_remove.append(bullet)
                     break
-            
-            # Проверка попадания в танк
-            for tank_id, tank in self.tanks.items():
-                if (tank.id != bullet.owner_id and tank.alive and 
-                    bullet.rect.colliderect(tank.rect) and 
-                    not tank.is_invulnerable()):  # Проверка неуязвимости
-                    # Увеличиваем счетчик убийств у владельца пули
-                    if bullet.owner_id in self.tanks:
-                        self.tanks[bullet.owner_id].kills += 1
-                    tank.take_damage()
-                    bullets_to_remove.append(bullet)
-                    break
-        
+
+            # Проверка попадания в танк (только если игра не окончена)
+            if not self.game_ended:
+                for tank_id, tank in self.tanks.items():
+                    if (tank.id != bullet.owner_id and tank.alive and
+                        bullet.rect.colliderect(tank.rect) and
+                        not tank.is_invulnerable()):  # Проверка неуязвимости
+                        # Увеличиваем счетчик убийств у владельца пули
+                        if bullet.owner_id in self.tanks:
+                            self.tanks[bullet.owner_id].kills += 1
+                        tank.take_damage()
+                        bullets_to_remove.append(bullet)
+                        break
+
         for bullet in bullets_to_remove:
             self.bullets.remove(bullet)
     
