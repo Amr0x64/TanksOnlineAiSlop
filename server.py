@@ -91,7 +91,7 @@ class GameServer:
             last_time = current_time
             
             self.game.update(dt)
-            time.sleep(0.016)  # ~60 FPS
+            time.sleep(0.033)  # ~30 FPS, синхронизировано с broadcast_loop
     
     def broadcast_loop(self):
         while self.running:
@@ -111,7 +111,7 @@ class GameServer:
                 if tank_id in self.game.tanks:
                     del self.game.tanks[tank_id]
             
-            time.sleep(0.016)  # ~60 обновлений в секунду
+            time.sleep(0.033)  # ~30 обновлений в секунду для снижения сетевой задержки
     
     def run(self):
         # Запуск игрового цикла
