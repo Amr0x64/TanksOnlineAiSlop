@@ -2,6 +2,8 @@ import socket
 import threading
 import json
 import time
+import signal
+import sys
 from game import Game
 
 HOST = '0.0.0.0'
@@ -14,12 +16,24 @@ class GameServer:
         self.clients = {}
         self.next_tank_id = 0
         self.running = True
+        self.shutdown_event = threading.Event()
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.socket.bind((HOST, PORT))
         self.socket.listen(2)
         print(f"Сервер запущен на {HOST}:{PORT}")
         print("Сервер работает в фоновом режиме (без окна)")
+        print("Нажмите Ctrl+C для остановки сервера")
+
+        # Настройка обработчика сигнала для корректного завершения
+        signal.signal(signal.SIGINT, self.signal_handler)
+        signal.signal(signal.SIGTERM, self.signal_handler)
+
+    def signal_handler(self, signum, frame):
+        """Обработчик сигналов для корректного завершения"""
+        print(f"\nПолучен сигнал {signum}. Остановка сервера...")
+        self.running = False
+        self.shutdown_event.set()
     
     def handle_client(self, conn, addr, tank_id):
         print(f"Клиент {addr} подключен как танк {tank_id}")
@@ -85,33 +99,35 @@ class GameServer:
     
     def game_loop(self):
         last_time = time.time()
-        while self.running:
+        while not self.shutdown_event.is_set():
             current_time = time.time()
             dt = current_time - last_time
             last_time = current_time
-            
+
             self.game.update(dt)
-            time.sleep(0.033)  # ~30 FPS, синхронизировано с broadcast_loop
+            # Используем wait вместо sleep для быстрого реагирования на сигнал завершения
+            self.shutdown_event.wait(0.033)  # ~30 FPS, синхронизировано с broadcast_loop
     
     def broadcast_loop(self):
-        while self.running:
+        while not self.shutdown_event.is_set():
             state = self.game.get_state()
             message = json.dumps({'type': 'state', 'data': state})
-            
+
             disconnected = []
             for tank_id, conn in self.clients.items():
                 try:
                     conn.sendall((message + '\n').encode('utf-8'))
                 except:
                     disconnected.append(tank_id)
-            
+
             for tank_id in disconnected:
                 if tank_id in self.clients:
                     del self.clients[tank_id]
                 if tank_id in self.game.tanks:
                     del self.game.tanks[tank_id]
-            
-            time.sleep(0.033)  # ~30 обновлений в секунду для снижения сетевой задержки
+
+            # Используем wait вместо sleep для быстрого реагирования на сигнал завершения
+            self.shutdown_event.wait(0.033)  # ~30 обновлений в секунду для снижения сетевой задержки
     
     def run(self):
         # Запуск игрового цикла
@@ -165,5 +181,11 @@ if __name__ == '__main__':
         server.run()
     except KeyboardInterrupt:
         print("\nОстановка сервера...")
+    finally:
+        # Гарантируем корректное завершение
         server.running = False
+        server.shutdown_event.set()
+        if hasattr(server, 'socket'):
+            server.socket.close()
+        print("Сервер остановлен.")
 
